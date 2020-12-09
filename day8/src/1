@@ -1,0 +1,75 @@
+#[derive(Debug, Clone, Copy)]
+enum Instr {
+    Nop(i64),
+    Acc(i64),
+    Jmp(i64),
+}
+
+impl Instr {
+    fn parse(line: &str) -> Instr {
+        match &line[..3] {
+            "nop" => Instr::Nop(line[4..].parse::<i64>().unwrap()),
+            "acc" => Instr::Acc(line[4..].parse::<i64>().unwrap()),
+            "jmp" => Instr::Jmp(line[4..].parse::<i64>().unwrap()),
+            _ => panic!("Unknown instruction"),
+        }
+    }
+
+    fn exec(&self, cur_idx: i64, cur_accum: i64) -> (i64, i64) {
+        match self {
+            Instr::Nop(_) => (cur_idx+1, cur_accum),
+            Instr::Acc(op) => (cur_idx+1, cur_accum + op),
+            Instr::Jmp(op) => (cur_idx+op, cur_accum)
+        }
+    }
+}
+
+fn find_loop(instructions: &Vec<Instr>) -> (bool, i64) {
+    let mut exec_index: i64 = 0;
+    let mut accum: i64 = 0;
+    let mut visited_pos: Vec<bool> = vec![false; instructions.len()];
+    while (exec_index as usize) < instructions.len() {
+        if visited_pos[exec_index as usize] {
+            println!("Visited previously visited instruction again!");
+            return (false, accum);
+        }
+
+        visited_pos[exec_index as usize] = true;
+        let next = instructions[exec_index as usize].exec(exec_index, accum);
+        exec_index = next.0;
+        accum = next.1;
+    }
+
+    (true, accum)
+}
+
+fn fix_loop(instructions: &mut Vec<Instr>) -> i64 {
+    for i in 0..instructions.len() {
+        let saved_instruction = instructions[i];
+        instructions[i] = match instructions[i] {
+            Instr::Nop(i) => Instr::Jmp(i),
+            Instr::Jmp(i) => Instr::Nop(i),
+            _ => continue;
+        }
+
+        let next = find_loop(instructions);
+        if next.0 {
+            return next.1
+        }
+
+        instructions[i] = saved_instruction;
+    }
+
+    panic!("found not loop-free code substitution");
+}
+
+fn main() {
+    let input = include_str!("input.txt");
+    let instructions = input
+        .split('\n')
+        .filter(|l| !l.is_empty())
+        .map(|l| Instr::parse(l))
+        .collect::<Vec<_>>();
+
+    println!("Accumulator value in loop: {}", find_loop(&instructions).1);
+}
